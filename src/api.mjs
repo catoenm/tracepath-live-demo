@@ -1,6 +1,9 @@
 import express from 'express';
-import { initializePricingQueue } from './pricing-queue.mjs';
-import { createOrder, initializeDatabase } from './orders.mjs';
+import { initializeRouteQueue } from './route-queue.mjs';
+import { initializeDatabase } from './seed-database.mjs';
+import { planTrip } from './trips.mjs';
+import { loadPlaces } from './places.mjs';
+import { validateTrip, validatePlaces } from './travel-input.mjs';
 import { operation, requestContext, flush } from './telemetry.mjs';
 const app = express();
 app.use(express.json({ limit: '16kb' }));
@@ -19,20 +22,23 @@ app.get('/health', async (req, res) => {
     await flush();
   });
 });
-app.post('/orders', async (req, res) => {
+app.post('/itineraries', async (req, res) => {
   if (req.headers['x-demo-token'] !== process.env.TRACEPATH_DEMO_TOKEN) return res.sendStatus(401);
-  const { amount, payment, parallel } = req.body;
-  if (
-    !Number.isInteger(amount) ||
-    amount < 1 ||
-    amount > 10000 ||
-    !['approved', 'declined'].includes(payment) ||
-    typeof parallel !== 'boolean'
-  )
-    return res.status(400).json({ error: 'Invalid demo payload' });
   await requestContext(req.headers, async () => {
     try {
-      res.status(201).json(await createOrder({ amount, payment, parallel }));
+      res.status(201).json(await planTrip(validateTrip(req.body)));
+    } catch (error) {
+      res.status(error.status ?? 503).json({ error: error.message });
+    } finally {
+      await flush();
+    }
+  });
+});
+app.post('/places', async (req, res) => {
+  if (req.headers['x-demo-token'] !== process.env.TRACEPATH_DEMO_TOKEN) return res.sendStatus(401);
+  await requestContext(req.headers, async () => {
+    try {
+      res.json(await loadPlaces(validatePlaces(req.body)));
     } catch (error) {
       res.status(error.status ?? 503).json({ error: error.message });
     } finally {
@@ -41,5 +47,5 @@ app.post('/orders', async (req, res) => {
   });
 });
 await initializeDatabase();
-await initializePricingQueue();
+await initializeRouteQueue();
 app.listen(4310, '0.0.0.0');

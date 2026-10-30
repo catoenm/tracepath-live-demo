@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readState, compose, origins, receiver, wait } from './support.mjs';
 
 const state = readState();
-const countOrders = () =>
+const countItineraries = () =>
   Number(
     compose(
       [
@@ -16,18 +16,18 @@ const countOrders = () =>
         '-d',
         'demo',
         '-tAc',
-        'SELECT count(*) FROM demo_orders',
+        'SELECT count(*) FROM demo_itineraries',
       ],
       state,
       true,
     ).trim(),
   );
-const before = countOrders();
+const before = countItineraries();
 const runId = randomUUID();
 const started = Date.now();
 compose(['pause', 'worker'], state, true);
 try {
-  const response = await fetch(`${origins['orders-api']}/orders`, {
+  const response = await fetch(`${origins['travel-api']}/itineraries`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -35,7 +35,13 @@ try {
       'x-tracepath-run': runId,
       'x-tracepath-request': 'timeout-1',
     },
-    body: JSON.stringify({ amount: 4900, payment: 'approved', parallel: false }),
+    body: JSON.stringify({
+      destination: 'lisbon',
+      days: 2,
+      preference: 'balanced',
+      weather: 'sunny',
+      parallel: true,
+    }),
     signal: AbortSignal.timeout(10000),
   });
   assert.equal(response.status, 503, JSON.stringify(await response.json()));
@@ -50,14 +56,18 @@ for (let attempt = 0; attempt < 60; attempt++) {
     signal: AbortSignal.timeout(3000),
   });
   spans = await response.json();
-  if (spans.some((span) => span.operation === 'pricing.calculate' && span.endMs)) break;
+  if (spans.some((span) => span.operation === 'route.calculate' && span.endMs)) break;
   await wait(100);
 }
-const worker = spans.find((span) => span.operation === 'pricing.calculate');
+const worker = spans.find((span) => span.operation === 'route.calculate');
 assert.ok(worker?.error, 'Resumed worker must reject the expired job');
 assert.match(worker.message, /expired/);
-assert.ok(!spans.some((span) => ['payments.charge', 'orders.save'].includes(span.operation)));
-assert.equal(countOrders(), before, 'A timed-out HTTP request must never create an order later');
+assert.ok(!spans.some((span) => ['trip.save'].includes(span.operation)));
+assert.equal(
+  countItineraries(),
+  before,
+  'A timed-out HTTP request must never save an itinerary later',
+);
 console.log(
-  'Paused worker: HTTP 503 within the wait deadline; resumed worker rejected the expired job; no payment or database write.',
+  'Paused worker: HTTP 503 within the wait deadline; resumed worker rejected the expired job; no itinerary database write.',
 );

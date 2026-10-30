@@ -11,16 +11,16 @@ services:
     command: node src/api.mjs
     environment:
       <<: *environment
-      OTEL_SERVICE_NAME: orders-api
+      OTEL_SERVICE_NAME: travel-api
       REDIS_URL: redis://redis:6379
-      PAYMENTS_URL: http://payments:4311
+      WEATHER_URL: http://weather:4311
       DATABASE_URL: postgres://demo:demo@database:5432/demo
     ports: ['127.0.0.1:4410:4310']
     depends_on:
       database: { condition: service_healthy }
       redis: { condition: service_healthy }
       worker: { condition: service_healthy }
-      payments: { condition: service_healthy }
+      weather: { condition: service_healthy }
       receiver: { condition: service_healthy }
     healthcheck:
       test:
@@ -33,13 +33,13 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
-  payments:
+  weather:
     <<: *demo
-    command: node src/payments.mjs
+    command: node src/weather.mjs
     ports: ['127.0.0.1:4411:4311']
     environment:
       <<: *environment
-      OTEL_SERVICE_NAME: mock-payments
+      OTEL_SERVICE_NAME: mock-weather
     healthcheck:
       test:
         [
@@ -68,10 +68,10 @@ services:
       retries: 20
   worker:
     <<: *demo
-    command: node src/pricing-worker.mjs
+    command: node src/route-worker.mjs
     environment:
       <<: *environment
-      OTEL_SERVICE_NAME: pricing-worker
+      OTEL_SERVICE_NAME: route-worker
       REDIS_URL: redis://redis:6379
     depends_on:
       redis: { condition: service_healthy }
@@ -82,7 +82,7 @@ services:
           'CMD',
           'node',
           '-e',
-          'if(require("node:fs").readFileSync("/tmp/pricing-ready","utf8")!==process.env.TRACEPATH_REVISION)process.exit(1)',
+          'if(require("node:fs").readFileSync("/tmp/route-ready","utf8")!==process.env.TRACEPATH_REVISION)process.exit(1)',
         ]
       interval: 2s
       timeout: 3s

@@ -1,230 +1,139 @@
 {
   "version": 1,
+  "instrumentationFiles": ["src/telemetry.mjs"],
   "operations": [
     {
-      "id": "orders.create",
-      "label": "Create order",
-      "service": "orders-api",
+      "id": "trip.plan",
+      "label": "Plan itinerary",
+      "service": "travel-api",
       "kind": "internal",
-      "path": "src/orders.mjs",
-      "symbol": "createOrder"
+      "path": "src/trips.mjs",
+      "symbol": "planTrip"
     },
     {
-      "id": "inventory.check",
-      "label": "Check inventory",
-      "service": "orders-api",
+      "id": "places.load",
+      "label": "Find places",
+      "service": "travel-api",
       "kind": "internal",
-      "path": "src/inventory.mjs",
-      "symbol": "checkInventory"
+      "path": "src/places.mjs",
+      "symbol": "loadPlaces"
     },
     {
-      "id": "payments.charge",
-      "label": "Charge payment",
-      "service": "orders-api",
-      "kind": "http",
-      "destination": "Mock payments",
-      "path": "src/orders.mjs",
-      "symbol": "chargePayment"
-    },
-    {
-      "id": "payments.authorize",
-      "label": "Authorize payment",
-      "service": "mock-payments",
-      "kind": "internal",
-      "path": "src/payments.mjs",
-      "symbol": "authorizePayment"
-    },
-    {
-      "id": "orders.save",
-      "label": "Save order",
-      "service": "orders-api",
+      "id": "places.cache.read",
+      "label": "Read places cache",
+      "service": "travel-api",
       "kind": "database",
-      "destination": "Postgres",
-      "path": "src/orders.mjs",
-      "symbol": "saveOrder"
+      "path": "src/places.mjs",
+      "symbol": "readCachedPlaces",
+      "destination": "Redis cache"
+    },
+    {
+      "id": "places.database.read",
+      "label": "Load destination places",
+      "service": "travel-api",
+      "kind": "database",
+      "path": "src/places.mjs",
+      "symbol": "readPlacesDatabase",
+      "destination": "Postgres"
+    },
+    {
+      "id": "places.cache.write",
+      "label": "Cache destination places",
+      "service": "travel-api",
+      "kind": "database",
+      "path": "src/places.mjs",
+      "symbol": "cachePlaces",
+      "destination": "Redis cache"
+    },
+    {
+      "id": "weather.fetch",
+      "label": "Fetch weather",
+      "service": "travel-api",
+      "kind": "http",
+      "path": "src/trips.mjs",
+      "symbol": "fetchWeather",
+      "destination": "Mock weather"
+    },
+    {
+      "id": "weather.forecast",
+      "label": "Provide forecast",
+      "service": "mock-weather",
+      "kind": "internal",
+      "path": "src/weather.mjs",
+      "symbol": "forecastWeather"
+    },
+    {
+      "id": "route.wait",
+      "label": "Enqueue route and wait",
+      "service": "travel-api",
+      "kind": "internal",
+      "path": "src/route-queue.mjs",
+      "symbol": "planRoute",
+      "destination": "BullMQ / Redis"
+    },
+    {
+      "id": "route.calculate",
+      "label": "Build daily itinerary",
+      "service": "route-worker",
+      "kind": "internal",
+      "path": "src/route-worker.mjs",
+      "symbol": "calculateItinerary"
+    },
+    {
+      "id": "trip.save",
+      "label": "Save itinerary",
+      "service": "travel-api",
+      "kind": "database",
+      "path": "src/trips.mjs",
+      "symbol": "saveItinerary",
+      "destination": "Postgres"
     },
     {
       "id": "api.health",
-      "label": "API health",
-      "service": "orders-api",
+      "label": "Travel API health",
+      "service": "travel-api",
       "kind": "internal",
       "path": "src/api.mjs",
       "symbol": "apiHealth"
     },
     {
-      "id": "payments.health",
-      "label": "Payments health",
-      "service": "mock-payments",
+      "id": "weather.health",
+      "label": "Weather service health",
+      "service": "mock-weather",
       "kind": "internal",
-      "path": "src/payments.mjs",
-      "symbol": "paymentsHealth"
-    },
-    {
-      "id": "inventory.cache.read",
-      "label": "Read inventory cache",
-      "service": "orders-api",
-      "kind": "database",
-      "path": "src/inventory.mjs",
-      "symbol": "readCachedInventory",
-      "destination": "Redis cache"
-    },
-    {
-      "id": "inventory.database.read",
-      "label": "Load inventory",
-      "service": "orders-api",
-      "kind": "database",
-      "path": "src/inventory.mjs",
-      "symbol": "readInventoryDatabase",
-      "destination": "Postgres"
-    },
-    {
-      "id": "inventory.cache.write",
-      "label": "Populate inventory cache",
-      "service": "orders-api",
-      "kind": "database",
-      "path": "src/inventory.mjs",
-      "symbol": "cacheInventory",
-      "destination": "Redis cache"
-    },
-    {
-      "id": "pricing.wait",
-      "label": "Enqueue pricing and wait",
-      "service": "orders-api",
-      "kind": "internal",
-      "path": "src/pricing-queue.mjs",
-      "symbol": "priceOrder",
-      "destination": "BullMQ / Redis"
-    },
-    {
-      "id": "pricing.calculate",
-      "label": "Calculate price",
-      "service": "pricing-worker",
-      "kind": "internal",
-      "path": "src/pricing-worker.mjs",
-      "symbol": "calculateQuote"
-    }
-  ],
-  "scenarios": [
-    {
-      "id": "success",
-      "label": "Successful order",
-      "description": "Redis inventory lookup (Postgres on a miss), queued pricing, payment, then a real order INSERT.",
-      "requests": [
-        {
-          "amount": 4900,
-          "payment": "approved",
-          "parallel": false
-        }
-      ]
-    },
-    {
-      "id": "failure",
-      "label": "Declined payment",
-      "description": "Inventory and queued pricing finish, then payment fails; no order is saved.",
-      "requests": [
-        {
-          "amount": 4900,
-          "payment": "declined",
-          "parallel": false
-        }
-      ]
-    },
-    {
-      "id": "concurrent",
-      "label": "Concurrent requests",
-      "description": "Three orders overlap. Inventory and pricing run in parallel; a two-slot BullMQ worker prices them. One payment declines.",
-      "requests": [
-        {
-          "amount": 2900,
-          "payment": "approved",
-          "parallel": true
-        },
-        {
-          "amount": 5900,
-          "payment": "declined",
-          "parallel": true
-        },
-        {
-          "amount": 8900,
-          "payment": "approved",
-          "parallel": true
-        }
-      ]
-    },
-    {
-      "id": "api.health",
-      "label": "Health check",
-      "description": "Check the orders-api service and record its handler timing.",
-      "requests": [{}]
-    },
-    {
-      "id": "payments.health",
-      "label": "Health check",
-      "description": "Check the mock-payments service and record its handler timing.",
-      "requests": [{}]
-    },
-    {
-      "id": "charge.success",
-      "label": "Approved payment",
-      "description": "Authorize a payment directly, without creating an order.",
-      "requests": [
-        {
-          "amount": 4900,
-          "payment": "approved"
-        }
-      ]
-    },
-    {
-      "id": "charge.failure",
-      "label": "Declined payment",
-      "description": "Return a payment decline and record the failed operation.",
-      "requests": [
-        {
-          "amount": 4900,
-          "payment": "declined"
-        }
-      ]
-    },
-    {
-      "id": "charge.concurrent",
-      "label": "Concurrent payments",
-      "description": "Three direct payments at once, including a decline.",
-      "requests": [
-        {
-          "amount": 4900,
-          "payment": "approved"
-        },
-        {
-          "amount": 4900,
-          "payment": "declined"
-        },
-        {
-          "amount": 4900,
-          "payment": "approved"
-        }
-      ]
-    },
-    {
-      "id": "pricing.failure",
-      "label": "Pricing job failure",
-      "description": "Demo amount 1337 makes the worker fail. HTTP 503; no payment or order write.",
-      "requests": [
-        {
-          "amount": 1337,
-          "payment": "approved",
-          "parallel": false
-        }
-      ]
+      "path": "src/weather.mjs",
+      "symbol": "weatherHealth"
     }
   ],
   "entrypoints": [
     {
       "method": "POST",
-      "route": "/orders",
-      "operation": "orders.create",
+      "route": "/itineraries",
+      "operation": "trip.plan",
       "path": "src/api.mjs",
-      "payloadKind": "order",
-      "scenarioIds": ["success", "failure", "concurrent", "pricing.failure"]
+      "payloadKind": "json",
+      "scenarioIds": ["success", "rain", "weather.failure", "planner.failure", "concurrent"]
+    },
+    {
+      "method": "POST",
+      "route": "/places",
+      "operation": "places.load",
+      "path": "src/api.mjs",
+      "payloadKind": "json",
+      "scenarioIds": ["places.lisbon", "places.kyoto", "places.reykjavik"]
+    },
+    {
+      "method": "POST",
+      "route": "/forecast",
+      "operation": "weather.forecast",
+      "path": "src/weather.mjs",
+      "payloadKind": "json",
+      "scenarioIds": [
+        "forecast.sunny",
+        "forecast.rain",
+        "forecast.unavailable",
+        "forecast.concurrent"
+      ]
     },
     {
       "method": "GET",
@@ -237,19 +146,191 @@
     {
       "method": "GET",
       "route": "/health",
-      "operation": "payments.health",
-      "path": "src/payments.mjs",
+      "operation": "weather.health",
+      "path": "src/weather.mjs",
       "payloadKind": "empty",
-      "scenarioIds": ["payments.health"]
-    },
-    {
-      "method": "POST",
-      "route": "/charges",
-      "operation": "payments.authorize",
-      "path": "src/payments.mjs",
-      "payloadKind": "payment",
-      "scenarioIds": ["charge.success", "charge.failure", "charge.concurrent"]
+      "scenarioIds": ["weather.health"]
     }
   ],
-  "instrumentationFiles": ["src/telemetry.mjs"]
+  "scenarios": [
+    {
+      "id": "success",
+      "label": "Sunny Lisbon weekend",
+      "description": "Cached places, weather forecast, queued planning, then a real itinerary INSERT.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "days": 2,
+          "preference": "balanced",
+          "weather": "sunny",
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "rain",
+      "label": "Rainy Kyoto culture trip",
+      "description": "The worker filters out outdoor stops and prioritizes culture.",
+      "requests": [
+        {
+          "destination": "kyoto",
+          "days": 2,
+          "preference": "culture",
+          "weather": "rain",
+          "parallel": true
+        }
+      ]
+    },
+    {
+      "id": "weather.failure",
+      "label": "Weather provider unavailable",
+      "description": "HTTP 502; no planning job or itinerary write.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "days": 2,
+          "preference": "balanced",
+          "weather": "unavailable",
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "planner.failure",
+      "label": "Route worker failure",
+      "description": "An explicit demo fault rejects the job; HTTP 503 and no itinerary write.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "days": 2,
+          "preference": "balanced",
+          "weather": "sunny",
+          "parallel": false,
+          "simulatePlannerFailure": true
+        }
+      ]
+    },
+    {
+      "id": "concurrent",
+      "label": "Three travelers at once",
+      "description": "Independent destinations overlap, including one weather failure; the route worker has two slots.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "days": 2,
+          "preference": "balanced",
+          "weather": "sunny",
+          "parallel": true
+        },
+        {
+          "destination": "kyoto",
+          "days": 2,
+          "preference": "balanced",
+          "weather": "unavailable",
+          "parallel": true
+        },
+        {
+          "destination": "reykjavik",
+          "days": 2,
+          "preference": "balanced",
+          "weather": "rain",
+          "parallel": true
+        }
+      ]
+    },
+    {
+      "id": "places.lisbon",
+      "label": "Places in Lisbon",
+      "description": "Read seeded places via Redis with Postgres on a cache miss.",
+      "requests": [
+        {
+          "destination": "lisbon"
+        }
+      ]
+    },
+    {
+      "id": "places.kyoto",
+      "label": "Places in Kyoto",
+      "description": "Read seeded places via Redis with Postgres on a cache miss.",
+      "requests": [
+        {
+          "destination": "kyoto"
+        }
+      ]
+    },
+    {
+      "id": "places.reykjavik",
+      "label": "Places in Reykjavik",
+      "description": "Read seeded places via Redis with Postgres on a cache miss.",
+      "requests": [
+        {
+          "destination": "reykjavik"
+        }
+      ]
+    },
+    {
+      "id": "forecast.sunny",
+      "label": "Forecast: sunny",
+      "description": "Call the mock forecast service directly.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "condition": "sunny"
+        }
+      ]
+    },
+    {
+      "id": "forecast.rain",
+      "label": "Forecast: rain",
+      "description": "Call the mock forecast service directly.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "condition": "rain"
+        }
+      ]
+    },
+    {
+      "id": "forecast.unavailable",
+      "label": "Forecast: unavailable",
+      "description": "Call the mock forecast service directly.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "condition": "unavailable"
+        }
+      ]
+    },
+    {
+      "id": "forecast.concurrent",
+      "label": "Concurrent forecasts",
+      "description": "Three independent forecasts; one provider failure.",
+      "requests": [
+        {
+          "destination": "lisbon",
+          "condition": "sunny"
+        },
+        {
+          "destination": "lisbon",
+          "condition": "rain"
+        },
+        {
+          "destination": "lisbon",
+          "condition": "unavailable"
+        }
+      ]
+    },
+    {
+      "id": "api.health",
+      "label": "Health check",
+      "description": "Record a health handler without other services.",
+      "requests": [{}]
+    },
+    {
+      "id": "weather.health",
+      "label": "Health check",
+      "description": "Record a health handler without other services.",
+      "requests": [{}]
+    }
+  ]
 }

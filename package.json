@@ -1,6 +1,6 @@
 {
   "name": "tracepath-live-demo",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "dependencies": {
@@ -12,7 +12,7 @@
     "ioredis": "5.11.1",
     "pg": "8.16.3"
   },
-  "description": "Instrumented API, Redis cache, BullMQ worker, mock payments, and Postgres fixture for Tracepath.",
+  "description": "Instrumented travel planner with Redis places, a BullMQ route worker, mock weather, and Postgres.",
   "engines": {
     "node": ">=24"
   },
@@ -24,6 +24,7 @@
     "test:integration": "node scripts/scenarios.mjs && node scripts/timeout.mjs",
     "check": "node scripts/check.mjs",
     "build": "node scripts/check.mjs",
-    "test:timeout": "node scripts/timeout.mjs"
+    "test:timeout": "node scripts/timeout.mjs",
+    "request": "node scripts/request.mjs"
   }
 }

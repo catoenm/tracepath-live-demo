@@ -8,8 +8,8 @@ export const manifest = JSON.parse(
   readFileSync(new URL('../tracepath.runtime.json', import.meta.url), 'utf8'),
 );
 export const origins = {
-  'orders-api': 'http://127.0.0.1:4410',
-  'mock-payments': 'http://127.0.0.1:4411',
+  'travel-api': 'http://127.0.0.1:4410',
+  'mock-weather': 'http://127.0.0.1:4411',
 };
 export const receiver = 'http://127.0.0.1:4412';
 

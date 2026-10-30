@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { validateTrip, validateWeather, validatePlaces } from '../src/travel-input.mjs';
 import { manifest } from '../scripts/support.mjs';
 
 test('every public business endpoint has a traced root and compatible sample requests', () => {
-  assert.equal(manifest.entrypoints.length, 4);
+  assert.equal(manifest.entrypoints.length, 5);
   assert.equal(
     new Set(manifest.operations.map((operation) => operation.id)).size,
     manifest.operations.length,
@@ -28,17 +29,14 @@ test('every public business endpoint has a traced root and compatible sample req
       for (const payload of scenario.requests) {
         if (entry.payloadKind === 'empty') assert.deepEqual(payload, {});
         else {
-          assert.ok(
-            Number.isInteger(payload.amount) && payload.amount >= 1 && payload.amount <= 10000,
-          );
-          assert.ok(['approved', 'declined'].includes(payload.payment));
-          assert.deepEqual(
-            Object.keys(payload).sort(),
-            entry.payloadKind === 'order'
-              ? ['amount', 'parallel', 'payment']
-              : ['amount', 'payment'],
-          );
-          if (entry.payloadKind === 'order') assert.equal(typeof payload.parallel, 'boolean');
+          assert.equal(entry.payloadKind, 'json');
+          const validate =
+            entry.operation === 'trip.plan'
+              ? validateTrip
+              : entry.operation === 'places.load'
+                ? validatePlaces
+                : validateWeather;
+          assert.doesNotThrow(() => validate(payload));
         }
       }
     }
