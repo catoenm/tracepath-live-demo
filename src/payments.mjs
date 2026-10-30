@@ -10,10 +10,14 @@ export async function authorizePayment(input) {
   });
 }
 export async function paymentsHealth() {
-  return operation('payments.health', async () => ({ ok: true, revision: process.env.TRACEPATH_REVISION }));
+  return operation('payments.health', async () => ({
+    ok: true,
+    revision: process.env.TRACEPATH_REVISION,
+  }));
 }
 app.get('/health', async (req, res) => {
-  if (!req.headers['x-tracepath-run']) return res.json({ ok: true, revision: process.env.TRACEPATH_REVISION });
+  if (!req.headers['x-tracepath-run'])
+    return res.json({ ok: true, revision: process.env.TRACEPATH_REVISION });
   if (req.headers['x-demo-token'] !== process.env.TRACEPATH_DEMO_TOKEN) return res.sendStatus(401);
   await requestContext(req.headers, async () => {
     res.json(await paymentsHealth());
@@ -23,7 +27,13 @@ app.get('/health', async (req, res) => {
 app.post('/charges', async (req, res) => {
   if (req.headers['x-demo-token'] !== process.env.TRACEPATH_DEMO_TOKEN) return res.sendStatus(401);
   const { amount, payment } = req.body;
-  if (!Number.isInteger(amount) || amount < 1 || amount > 10000 || !['approved', 'declined'].includes(payment)) return res.status(400).json({ error: 'Invalid payment payload' });
+  if (
+    !Number.isInteger(amount) ||
+    amount < 1 ||
+    amount > 10000 ||
+    !['approved', 'declined'].includes(payment)
+  )
+    return res.status(400).json({ error: 'Invalid payment payload' });
   await requestContext(req.headers, async () => {
     try {
       res.json(await authorizePayment(req.body));

@@ -92,15 +92,19 @@ export function requestContext(headers, work) {
   });
   return context.with(propagation.setBaggage(extracted, baggage), work);
 }
-export function outgoingHeaders() {
-  const headers = {
-    'content-type': 'application/json',
-    'x-demo-token': process.env.TRACEPATH_DEMO_TOKEN,
-  };
+export function traceCarrier() {
+  const headers = {};
   propagation.inject(context.active(), headers);
   const baggage = propagation.getBaggage(context.active());
   headers['x-tracepath-run'] = baggage?.getEntry('run')?.value ?? '';
   headers['x-tracepath-request'] = baggage?.getEntry('request')?.value ?? '';
   return headers;
+}
+export function outgoingHeaders() {
+  return {
+    ...traceCarrier(),
+    'content-type': 'application/json',
+    'x-demo-token': process.env.TRACEPATH_DEMO_TOKEN,
+  };
 }
 export const flush = () => provider.forceFlush();

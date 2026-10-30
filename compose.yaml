@@ -12,11 +12,14 @@ services:
     environment:
       <<: *environment
       OTEL_SERVICE_NAME: orders-api
+      REDIS_URL: redis://redis:6379
       PAYMENTS_URL: http://payments:4311
       DATABASE_URL: postgres://demo:demo@database:5432/demo
     ports: ['127.0.0.1:4410:4310']
     depends_on:
       database: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      worker: { condition: service_healthy }
       payments: { condition: service_healthy }
       receiver: { condition: service_healthy }
     healthcheck:
@@ -60,6 +63,36 @@ services:
           '-e',
           'fetch("http://localhost:4312/health").then(r=>{if(!r.ok)process.exit(1)})',
         ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  worker:
+    <<: *demo
+    command: node src/pricing-worker.mjs
+    environment:
+      <<: *environment
+      OTEL_SERVICE_NAME: pricing-worker
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis: { condition: service_healthy }
+      receiver: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'if(require("node:fs").readFileSync("/tmp/pricing-ready","utf8")!==process.env.TRACEPATH_REVISION)process.exit(1)',
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7.4-alpine
+    command:
+      ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory-policy', 'noeviction']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 2s
       timeout: 3s
       retries: 20

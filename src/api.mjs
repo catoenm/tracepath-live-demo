@@ -1,13 +1,18 @@
 import express from 'express';
+import { initializePricingQueue } from './pricing-queue.mjs';
 import { createOrder, initializeDatabase } from './orders.mjs';
 import { operation, requestContext, flush } from './telemetry.mjs';
 const app = express();
 app.use(express.json({ limit: '16kb' }));
 export async function apiHealth() {
-  return operation('api.health', async () => ({ ok: true, revision: process.env.TRACEPATH_REVISION }));
+  return operation('api.health', async () => ({
+    ok: true,
+    revision: process.env.TRACEPATH_REVISION,
+  }));
 }
 app.get('/health', async (req, res) => {
-  if (!req.headers['x-tracepath-run']) return res.json({ ok: true, revision: process.env.TRACEPATH_REVISION });
+  if (!req.headers['x-tracepath-run'])
+    return res.json({ ok: true, revision: process.env.TRACEPATH_REVISION });
   if (req.headers['x-demo-token'] !== process.env.TRACEPATH_DEMO_TOKEN) return res.sendStatus(401);
   await requestContext(req.headers, async () => {
     res.json(await apiHealth());
@@ -29,11 +34,12 @@ app.post('/orders', async (req, res) => {
     try {
       res.status(201).json(await createOrder({ amount, payment, parallel }));
     } catch (error) {
-      res.status(402).json({ error: error.message });
+      res.status(error.status ?? 503).json({ error: error.message });
     } finally {
       await flush();
     }
   });
 });
 await initializeDatabase();
+await initializePricingQueue();
 app.listen(4310, '0.0.0.0');

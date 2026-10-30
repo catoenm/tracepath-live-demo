@@ -14,7 +14,7 @@
       "label": "Check inventory",
       "service": "orders-api",
       "kind": "internal",
-      "path": "src/orders.mjs",
+      "path": "src/inventory.mjs",
       "symbol": "checkInventory"
     },
     {
@@ -58,13 +58,57 @@
       "kind": "internal",
       "path": "src/payments.mjs",
       "symbol": "paymentsHealth"
+    },
+    {
+      "id": "inventory.cache.read",
+      "label": "Read inventory cache",
+      "service": "orders-api",
+      "kind": "database",
+      "path": "src/inventory.mjs",
+      "symbol": "readCachedInventory",
+      "destination": "Redis cache"
+    },
+    {
+      "id": "inventory.database.read",
+      "label": "Load inventory",
+      "service": "orders-api",
+      "kind": "database",
+      "path": "src/inventory.mjs",
+      "symbol": "readInventoryDatabase",
+      "destination": "Postgres"
+    },
+    {
+      "id": "inventory.cache.write",
+      "label": "Populate inventory cache",
+      "service": "orders-api",
+      "kind": "database",
+      "path": "src/inventory.mjs",
+      "symbol": "cacheInventory",
+      "destination": "Redis cache"
+    },
+    {
+      "id": "pricing.wait",
+      "label": "Enqueue pricing and wait",
+      "service": "orders-api",
+      "kind": "internal",
+      "path": "src/pricing-queue.mjs",
+      "symbol": "priceOrder",
+      "destination": "BullMQ / Redis"
+    },
+    {
+      "id": "pricing.calculate",
+      "label": "Calculate price",
+      "service": "pricing-worker",
+      "kind": "internal",
+      "path": "src/pricing-worker.mjs",
+      "symbol": "calculateQuote"
     }
   ],
   "scenarios": [
     {
       "id": "success",
       "label": "Successful order",
-      "description": "Inventory, payment, then a real INSERT into Postgres.",
+      "description": "Redis inventory lookup (Postgres on a miss), queued pricing, payment, then a real order INSERT.",
       "requests": [
         {
           "amount": 4900,
@@ -76,7 +120,7 @@
     {
       "id": "failure",
       "label": "Declined payment",
-      "description": "Payment fails; the order never reaches the database.",
+      "description": "Inventory and queued pricing finish, then payment fails; no order is saved.",
       "requests": [
         {
           "amount": 4900,
@@ -88,7 +132,7 @@
     {
       "id": "concurrent",
       "label": "Concurrent requests",
-      "description": "Three requests at once, including a decline. Inventory and payment also overlap within each request.",
+      "description": "Three orders overlap. Inventory and pricing run in parallel; a two-slot BullMQ worker prices them. One payment declines.",
       "requests": [
         {
           "amount": 2900,
@@ -111,17 +155,13 @@
       "id": "api.health",
       "label": "Health check",
       "description": "Check the orders-api service and record its handler timing.",
-      "requests": [
-        {}
-      ]
+      "requests": [{}]
     },
     {
       "id": "payments.health",
       "label": "Health check",
       "description": "Check the mock-payments service and record its handler timing.",
-      "requests": [
-        {}
-      ]
+      "requests": [{}]
     },
     {
       "id": "charge.success",
@@ -163,6 +203,18 @@
           "payment": "approved"
         }
       ]
+    },
+    {
+      "id": "pricing.failure",
+      "label": "Pricing job failure",
+      "description": "Demo amount 1337 makes the worker fail. HTTP 503; no payment or order write.",
+      "requests": [
+        {
+          "amount": 1337,
+          "payment": "approved",
+          "parallel": false
+        }
+      ]
     }
   ],
   "entrypoints": [
@@ -172,11 +224,7 @@
       "operation": "orders.create",
       "path": "src/api.mjs",
       "payloadKind": "order",
-      "scenarioIds": [
-        "success",
-        "failure",
-        "concurrent"
-      ]
+      "scenarioIds": ["success", "failure", "concurrent", "pricing.failure"]
     },
     {
       "method": "GET",
@@ -184,9 +232,7 @@
       "operation": "api.health",
       "path": "src/api.mjs",
       "payloadKind": "empty",
-      "scenarioIds": [
-        "api.health"
-      ]
+      "scenarioIds": ["api.health"]
     },
     {
       "method": "GET",
@@ -194,9 +240,7 @@
       "operation": "payments.health",
       "path": "src/payments.mjs",
       "payloadKind": "empty",
-      "scenarioIds": [
-        "payments.health"
-      ]
+      "scenarioIds": ["payments.health"]
     },
     {
       "method": "POST",
@@ -204,11 +248,8 @@
       "operation": "payments.authorize",
       "path": "src/payments.mjs",
       "payloadKind": "payment",
-      "scenarioIds": [
-        "charge.success",
-        "charge.failure",
-        "charge.concurrent"
-      ]
+      "scenarioIds": ["charge.success", "charge.failure", "charge.concurrent"]
     }
-  ]
+  ],
+  "instrumentationFiles": ["src/telemetry.mjs"]
 }
