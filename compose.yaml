@@ -1,0 +1,77 @@
+x-demo: &demo
+  image: tracepath-public-demo:local
+  build: .
+  environment: &environment
+    TRACEPATH_DEMO_TOKEN: ${TRACEPATH_DEMO_TOKEN:?Runner supplies the demo token}
+    TRACEPATH_REVISION: ${TRACEPATH_REVISION:?Runner supplies the source revision}
+    TELEMETRY_URL: http://receiver:4312
+services:
+  api:
+    <<: *demo
+    command: node src/api.mjs
+    environment:
+      <<: *environment
+      OTEL_SERVICE_NAME: orders-api
+      PAYMENTS_URL: http://payments:4311
+      DATABASE_URL: postgres://demo:demo@database:5432/demo
+    ports: ['127.0.0.1:4410:4310']
+    depends_on:
+      database: { condition: service_healthy }
+      payments: { condition: service_healthy }
+      receiver: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://localhost:4310/health").then(r=>{if(!r.ok)process.exit(1)})',
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  payments:
+    <<: *demo
+    command: node src/payments.mjs
+    ports: ['127.0.0.1:4411:4311']
+    environment:
+      <<: *environment
+      OTEL_SERVICE_NAME: mock-payments
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://localhost:4311/health").then(r=>{if(!r.ok)process.exit(1)})',
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  receiver:
+    <<: *demo
+    command: node src/receiver.mjs
+    ports: ['127.0.0.1:4412:4312']
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://localhost:4312/health").then(r=>{if(!r.ok)process.exit(1)})',
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demo
+    tmpfs: ['/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U demo']
+      interval: 2s
+      timeout: 3s
+      retries: 20

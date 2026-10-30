@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "operations": [
+    {
+      "id": "orders.create",
+      "label": "Create order",
+      "service": "orders-api",
+      "kind": "internal",
+      "path": "src/orders.mjs",
+      "symbol": "createOrder"
+    },
+    {
+      "id": "inventory.check",
+      "label": "Check inventory",
+      "service": "orders-api",
+      "kind": "internal",
+      "path": "src/orders.mjs",
+      "symbol": "checkInventory"
+    },
+    {
+      "id": "payments.charge",
+      "label": "Charge payment",
+      "service": "orders-api",
+      "kind": "http",
+      "destination": "Mock payments",
+      "path": "src/orders.mjs",
+      "symbol": "chargePayment"
+    },
+    {
+      "id": "payments.authorize",
+      "label": "Authorize payment",
+      "service": "mock-payments",
+      "kind": "internal",
+      "path": "src/payments.mjs",
+      "symbol": "authorizePayment"
+    },
+    {
+      "id": "orders.save",
+      "label": "Save order",
+      "service": "orders-api",
+      "kind": "database",
+      "destination": "Postgres",
+      "path": "src/orders.mjs",
+      "symbol": "saveOrder"
+    },
+    {
+      "id": "api.health",
+      "label": "API health",
+      "service": "orders-api",
+      "kind": "internal",
+      "path": "src/api.mjs",
+      "symbol": "apiHealth"
+    },
+    {
+      "id": "payments.health",
+      "label": "Payments health",
+      "service": "mock-payments",
+      "kind": "internal",
+      "path": "src/payments.mjs",
+      "symbol": "paymentsHealth"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "success",
+      "label": "Successful order",
+      "description": "Inventory, payment, then a real INSERT into Postgres.",
+      "requests": [
+        {
+          "amount": 4900,
+          "payment": "approved",
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "failure",
+      "label": "Declined payment",
+      "description": "Payment fails; the order never reaches the database.",
+      "requests": [
+        {
+          "amount": 4900,
+          "payment": "declined",
+          "parallel": false
+        }
+      ]
+    },
+    {
+      "id": "concurrent",
+      "label": "Concurrent requests",
+      "description": "Three requests at once, including a decline. Inventory and payment also overlap within each request.",
+      "requests": [
+        {
+          "amount": 2900,
+          "payment": "approved",
+          "parallel": true
+        },
+        {
+          "amount": 5900,
+          "payment": "declined",
+          "parallel": true
+        },
+        {
+          "amount": 8900,
+          "payment": "approved",
+          "parallel": true
+        }
+      ]
+    },
+    {
+      "id": "api.health",
+      "label": "Health check",
+      "description": "Check the orders-api service and record its handler timing.",
+      "requests": [
+        {}
+      ]
+    },
+    {
+      "id": "payments.health",
+      "label": "Health check",
+      "description": "Check the mock-payments service and record its handler timing.",
+      "requests": [
+        {}
+      ]
+    },
+    {
+      "id": "charge.success",
+      "label": "Approved payment",
+      "description": "Authorize a payment directly, without creating an order.",
+      "requests": [
+        {
+          "amount": 4900,
+          "payment": "approved"
+        }
+      ]
+    },
+    {
+      "id": "charge.failure",
+      "label": "Declined payment",
+      "description": "Return a payment decline and record the failed operation.",
+      "requests": [
+        {
+          "amount": 4900,
+          "payment": "declined"
+        }
+      ]
+    },
+    {
+      "id": "charge.concurrent",
+      "label": "Concurrent payments",
+      "description": "Three direct payments at once, including a decline.",
+      "requests": [
+        {
+          "amount": 4900,
+          "payment": "approved"
+        },
+        {
+          "amount": 4900,
+          "payment": "declined"
+        },
+        {
+          "amount": 4900,
+          "payment": "approved"
+        }
+      ]
+    }
+  ],
+  "entrypoints": [
+    {
+      "method": "POST",
+      "route": "/orders",
+      "operation": "orders.create",
+      "path": "src/api.mjs",
+      "payloadKind": "order",
+      "scenarioIds": [
+        "success",
+        "failure",
+        "concurrent"
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/health",
+      "operation": "api.health",
+      "path": "src/api.mjs",
+      "payloadKind": "empty",
+      "scenarioIds": [
+        "api.health"
+      ]
+    },
+    {
+      "method": "GET",
+      "route": "/health",
+      "operation": "payments.health",
+      "path": "src/payments.mjs",
+      "payloadKind": "empty",
+      "scenarioIds": [
+        "payments.health"
+      ]
+    },
+    {
+      "method": "POST",
+      "route": "/charges",
+      "operation": "payments.authorize",
+      "path": "src/payments.mjs",
+      "payloadKind": "payment",
+      "scenarioIds": [
+        "charge.success",
+        "charge.failure",
+        "charge.concurrent"
+      ]
+    }
+  ]
+}
